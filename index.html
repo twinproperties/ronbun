@@ -47,11 +47,14 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:10px}
 </style>
 </head>
 <body>
-<header><h1>予備論文 論点トレ</h1><small>問題を見る・論点と規範を思い出す・答えを確認　<span id="ver">v004</span></small></header>
+<header><h1>予備論文 論点トレ</h1><small>問題を見る・論点と規範を思い出す・答えを確認　<span id="ver">v005</span></small></header>
 <main>
 <section id="error" class="panel hidden"></section>
 <section id="setup" class="panel">
   <h2 style="font-size:17px;margin:0 0 16px">学習条件を選択</h2>
+  <label for="kind">学習形式</label>
+  <select id="kind"><option value="drill">論点ドリル（論点→規範・参考答案）</option><option value="past">過去問（問題文→論点・規範）</option></select>
+  <div style="height:14px"></div>
   <label for="subject">科目</label><select id="subject"></select>
   <div style="height:14px"></div>
   <label for="year">年度</label><select id="year"></select>
@@ -83,7 +86,7 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:10px}
   <div id="answer" class="hidden">
     <div class="sec"><h3>論点と規範</h3><div id="points"></div></div>
     <div class="sec hidden" id="anssec"><h3>参考解答（骨子）</h3><div class="intent" id="refans"></div></div>
-    <div class="sec"><h3>出題趣旨（法務省・原文）</h3><div class="intent" id="intent"></div><ul class="cases" id="cases"></ul></div>
+    <div class="sec" id="intentsec"><h3>出題趣旨（法務省・原文）</h3><div class="intent" id="intent"></div><ul class="cases" id="cases"></ul></div>
     <div class="sec" id="excelsec"><h3>参考：論点メモ（Excel整理）</h3><div class="note" id="excel"></div></div>
     <div class="sec rate"><div class="subtle" style="margin-bottom:8px">自分の答案（頭の中）はどうだった？</div>
       <div class="row"><button class="ok" data-r="2">書けた</button><button class="mid" data-r="1">あやふや</button><button class="ng" data-r="0">出てこない</button></div></div>
@@ -94,7 +97,7 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:10px}
 </main>
 <footer>問題文・出題趣旨：法務省公表資料　／　論点・規範：学習用に別途作成</footer>
 <script>
-const VER="v004";document.getElementById("ver").textContent=VER;
+const VER="v005";document.getElementById("ver").textContent=VER;
 const $=id=>document.getElementById(id);
 window.QDATA=null;window.RDATA=[];
 const KEY={rec:"ron-rec-v1",fav:"ron-fav-v1",log:"ron-log-v1"};
@@ -106,9 +109,9 @@ const SNAME=Object.fromEntries(SUBJ);
 let rec=ld(KEY.rec,{}),fav=ld(KEY.fav,{}),log=ld(KEY.log,{});
 let ALL=[],queue=[],idx=0,session={ok:0,mid:0,ng:0};
 const yr=n=>n;
-function candidates(){const a=[];for(let i=10;i>=1;i--)a.push("R"+String(i).padStart(2,"0"));for(let i=30;i>=23;i--)a.push("H"+i);return a}
-function loadYear(name){return new Promise(res=>{const s=document.createElement("script");s.src="data/"+name+".js?v=4";s.onload=()=>res(true);s.onerror=()=>res(false);document.head.appendChild(s)})}
-function rank(it){return(it.id[0]==="R"?100:50)+parseInt(it.id.slice(1,3),10)*(it.id[0]==="R"?1:1)}
+function candidates(){const a=[];for(let i=10;i>=1;i--)a.push("R"+String(i).padStart(2,"0"));for(let i=30;i>=23;i--)a.push("H"+i);for(let i=22;i>=14;i--)a.push("K"+i);return a}
+function loadYear(name){return new Promise(res=>{const s=document.createElement("script");s.src="data/"+name+".js?v=5";s.onload=()=>res(true);s.onerror=()=>res(false);document.head.appendChild(s)})}
+function rank(it){const c=it.id[0],n=parseInt(it.id.slice(1,3),10);return c==="R"?200+n:c==="H"?100+n:n}
 async function init(){
   await Promise.all(candidates().map(loadYear));
   ALL=(window.RDATA||[]).slice().sort((a,b)=>rank(b)-rank(a));
@@ -118,14 +121,20 @@ async function init(){
   [["__core","全科目（基本7科目＋実務基礎）"],...SUBJ.filter(s=>present.has(s[0]))].forEach(([v,t])=>{const o=document.createElement("option");o.value=v;o.textContent=t;sub.appendChild(o)});
   const ys=[...new Set(ALL.map(x=>x.year))];
   const y=$("year");y.innerHTML='<option value="">すべての年度</option>'+ys.map(v=>`<option>${v}</option>`).join("");
-  sub.onchange=y.onchange=$("mode").onchange=avail;avail();
+  buildDrill();sub.onchange=y.onchange=$("mode").onchange=$("kind").onchange=avail;avail();
 }
+let DRILL=[];
+function buildDrill(){const mp={};ALL.forEach(q=>(q.points||[]).forEach(p=>{const k=q.subject_id+"|"+p.t;const d=mp[k]=mp[k]||{id:"D:"+k,subject_id:q.subject_id,subject:q.subject,t:p.t,entries:[],hot:0};d.entries.push({year:q.year,qid:q.id,n:p.n,r:p.r,answer:q.answer,note:q.note,ord:rank(q)});d.hot=d.entries.length}));
+  DRILL=Object.values(mp);DRILL.forEach(d=>{d.entries.sort((a,b)=>b.ord-a.ord);d.ord=d.entries[0].ord;d.year=d.entries[0].year});DRILL.sort((a,b)=>b.ord-a.ord)}
+const isD=()=>$("kind").value==="drill";
 function pool(){
   const s=$("subject").value,y=$("year").value,m=$("mode").value;
+  if(isD())return DRILL.filter(q=>(s==="__core"?CORE.includes(q.subject_id):q.subject_id===s)&&(!y||q.entries.some(e=>e.year===y))&&
+   (m==="weak"?(rec[q.id]&&rec[q.id].last<2):m==="unseen"?!rec[q.id]:m==="favorites"?fav[q.id]:true));
   return ALL.filter(q=>(s==="__core"?CORE.includes(q.subject_id):s==="__all"?true:s==="__sel"?!CORE.includes(q.subject_id):q.subject_id===s)&&(!y||q.year===y)&&
    (m==="weak"?(rec[q.id]&&rec[q.id].last<2):m==="unseen"?!rec[q.id]:m==="favorites"?fav[q.id]:true));
 }
-function avail(){$("avail").textContent=`該当 ${pool().length}問（全${ALL.length}問）`}
+function avail(){$("avail").textContent=isD()?`該当 ${pool().length}論点（全${DRILL.length}論点）`:`該当 ${pool().length}問（全${ALL.length}問）`}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function weight(q){const r=rec[q.id];let w=1+(q.hot>=3?1:0)+(q.hot>=6?1:0);if(!r)w*=2;else w*=[3,2,1][r.last];return w}
 function weighted(p,n){const a=p.slice(),out=[];while(a.length&&out.length<n){let t=a.reduce((s,q)=>s+weight(q),0),r=Math.random()*t,i=0;for(;i<a.length-1;i++){r-=weight(a[i]);if(r<0)break}out.push(a.splice(i,1)[0])}return out}
@@ -143,12 +152,24 @@ function show(){
   const r=rec[q.id];
   $("chips").innerHTML=`<span class="chip">${q.year}</span><span class="chip sub">${SNAME[q.subject_id]||q.subject}</span>`+(q.hot>=3?'<span class="chip hot">頻出論点</span>':'')+(r?`<span class="chip sub">${["出てこない","あやふや","書けた"][r.last]}（${r.n}回）</span>`:"");
   $("fav").textContent=fav[q.id]?"★":"☆";
-  $("qtext").textContent=q.text;
+  if(isD()){const ys=q.entries.map(e=>e.year.replace("(旧司)","旧")).join("、");$("chips").innerHTML=`<span class="chip sub">${SNAME[q.subject_id]||q.subject}</span><span class="chip">${q.entries.length>1?q.entries.length+"回出題":"1回出題"}</span>`+(q.entries.length>=3?'<span class="chip hot">頻出論点</span>':'')+(r?`<span class="chip sub">${["出てこない","あやふや","書けた"][r.last]}（${r.n}回）</span>`:"");
+    $("qtext").textContent="【論点】"+q.t+"\n\n出題：\n"+ys;$("reveal").textContent="規範・参考答案を見る"}
+  else{$("qtext").textContent=q.text;$("reveal").textContent="答え（論点・規範）を見る"}
   $("answer").classList.add("hidden");$("reveal").classList.remove("hidden");$("navrow").classList.add("hidden");
   window.scrollTo(0,0);
 }
+function revealDrill(q){
+  const P=$("points");P.innerHTML="";
+  const seen=new Set();
+  q.entries.forEach((e,i)=>{if(i===0||!seen.has(e.n)){const d=document.createElement("div");d.className="pt";const b=document.createElement("b");b.textContent=i===0?"規範":"別年度の規範";d.appendChild(b);const n=document.createElement("div");n.className="n";n.textContent=e.n;d.appendChild(n);if(e.r){const r=document.createElement("div");r.className="r";r.textContent="根拠："+e.r+"（"+e.year+"）";d.appendChild(r)}P.appendChild(d);seen.add(e.n)}});
+  const A=q.entries.filter(e=>e.answer).slice(0,3).map(e=>"■"+e.year+"\n"+e.answer+(e.note?"\n（注）"+e.note:"")).join("\n\n");
+  $("refans").textContent=A;$("anssec").classList.toggle("hidden",!A);
+  $("intentsec").classList.add("hidden");$("excelsec").classList.add("hidden");
+  $("answer").classList.remove("hidden");$("reveal").classList.add("hidden");$("answer").scrollIntoView({behavior:"smooth",block:"start"});
+}
 $("reveal").onclick=()=>{
-  const q=queue[idx];
+  const q=queue[idx];if(isD())return revealDrill(q);
+  $("intentsec").classList.remove("hidden");
   const P=$("points");P.innerHTML="";
   if(q.points&&q.points.length){q.points.forEach(p=>{const d=document.createElement("div");d.className="pt";const b=document.createElement("b");b.textContent=p.t;d.appendChild(b);const n=document.createElement("div");n.className="n";n.textContent=p.n;d.appendChild(n);if(p.r){const r=document.createElement("div");r.className="r";r.textContent="根拠："+p.r;d.appendChild(r)}P.appendChild(d)});
     if(q.note){const d=document.createElement("div");d.className="note";d.textContent=q.note;P.appendChild(d)}}
