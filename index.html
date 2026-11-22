@@ -47,7 +47,7 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:10px}
 </style>
 </head>
 <body>
-<header><h1>予備論文 論点トレ</h1><small>問題を見る・論点と規範を思い出す・答えを確認　<span id="ver">v005</span></small></header>
+<header><h1>予備論文 論点トレ</h1><small>問題を見る・論点と規範を思い出す・答えを確認　<span id="ver">v008</span></small></header>
 <main>
 <section id="error" class="panel hidden"></section>
 <section id="setup" class="panel">
@@ -63,6 +63,7 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:10px}
   <select id="mode">
     <option value="mix">頻出論点を優先（おすすめ）</option>
     <option value="random">ランダム</option>
+    <option value="freq">頻出度の高い順（ドリル）</option>
     <option value="normal">年度順（新しい順）</option>
     <option value="weak">あやふや・出てこなかった</option>
     <option value="unseen">未学習のみ</option>
@@ -97,7 +98,7 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:10px}
 </main>
 <footer>問題文・出題趣旨：法務省公表資料　／　論点・規範：学習用に別途作成</footer>
 <script>
-const VER="v005";document.getElementById("ver").textContent=VER;
+const VER="v008";document.getElementById("ver").textContent=VER;
 const $=id=>document.getElementById(id);
 window.QDATA=null;window.RDATA=[];
 const KEY={rec:"ron-rec-v1",fav:"ron-fav-v1",log:"ron-log-v1"};
@@ -110,7 +111,7 @@ let rec=ld(KEY.rec,{}),fav=ld(KEY.fav,{}),log=ld(KEY.log,{});
 let ALL=[],queue=[],idx=0,session={ok:0,mid:0,ng:0};
 const yr=n=>n;
 function candidates(){const a=[];for(let i=10;i>=1;i--)a.push("R"+String(i).padStart(2,"0"));for(let i=30;i>=23;i--)a.push("H"+i);for(let i=22;i>=14;i--)a.push("K"+i);return a}
-function loadYear(name){return new Promise(res=>{const s=document.createElement("script");s.src="data/"+name+".js?v=5";s.onload=()=>res(true);s.onerror=()=>res(false);document.head.appendChild(s)})}
+function loadYear(name){return new Promise(res=>{const s=document.createElement("script");s.src="data/"+name+".js?v=8";s.onload=()=>res(true);s.onerror=()=>res(false);document.head.appendChild(s)})}
 function rank(it){const c=it.id[0],n=parseInt(it.id.slice(1,3),10);return c==="R"?200+n:c==="H"?100+n:n}
 async function init(){
   await Promise.all(candidates().map(loadYear));
@@ -124,8 +125,8 @@ async function init(){
   buildDrill();sub.onchange=y.onchange=$("mode").onchange=$("kind").onchange=avail;avail();
 }
 let DRILL=[];
-function buildDrill(){const mp={};ALL.forEach(q=>(q.points||[]).forEach(p=>{const k=q.subject_id+"|"+p.t;const d=mp[k]=mp[k]||{id:"D:"+k,subject_id:q.subject_id,subject:q.subject,t:p.t,entries:[],hot:0};d.entries.push({year:q.year,qid:q.id,n:p.n,r:p.r,answer:q.answer,note:q.note,ord:rank(q)});d.hot=d.entries.length}));
-  DRILL=Object.values(mp);DRILL.forEach(d=>{d.entries.sort((a,b)=>b.ord-a.ord);d.ord=d.entries[0].ord;d.year=d.entries[0].year});DRILL.sort((a,b)=>b.ord-a.ord)}
+function buildDrill(){const mp={};ALL.forEach(q=>(q.points||[]).forEach(p=>{const th=p.th||p.t;const k=q.subject_id+"|"+th;const d=mp[k]=mp[k]||{id:"D:"+k,subject_id:q.subject_id,subject:q.subject,t:th,entries:[],qs:new Set()};if(!p.old)d.qs.add(q.id);d.entries.push({old:p.old?1:0,year:q.year,qid:q.id,pt:p.t,n:p.n,r:p.r,answer:q.answer,note:q.note,ord:rank(q)})}));
+  DRILL=Object.values(mp);DRILL.forEach(d=>{d.hot=d.qs.size;if(d.hot===0)d.old=1;d.entries.sort((a,b)=>b.ord-a.ord||0);d.ord=d.entries[0].ord;d.year=d.entries[0].year});DRILL.sort((a,b)=>b.hot-a.hot||b.ord-a.ord)}
 const isD=()=>$("kind").value==="drill";
 function pool(){
   const s=$("subject").value,y=$("year").value,m=$("mode").value;
@@ -136,12 +137,12 @@ function pool(){
 }
 function avail(){$("avail").textContent=isD()?`該当 ${pool().length}論点（全${DRILL.length}論点）`:`該当 ${pool().length}問（全${ALL.length}問）`}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-function weight(q){const r=rec[q.id];let w=1+(q.hot>=3?1:0)+(q.hot>=6?1:0);if(!r)w*=2;else w*=[3,2,1][r.last];return w}
+function weight(q){const r=rec[q.id];let w=isD()?1+Math.min(q.hot,12)/2:1+(q.hot>=3?1:0)+(q.hot>=6?1:0);if(!r)w*=2;else w*=[3,2,1][r.last];return w}
 function weighted(p,n){const a=p.slice(),out=[];while(a.length&&out.length<n){let t=a.reduce((s,q)=>s+weight(q),0),r=Math.random()*t,i=0;for(;i<a.length-1;i++){r-=weight(a[i]);if(r<0)break}out.push(a.splice(i,1)[0])}return out}
 $("start").onclick=()=>{
   let p=pool();if(!p.length){alert("該当する問題がありません");return}
   const m=$("mode").value,n=+$("count").value||p.length;
-  queue=m==="mix"?weighted(p,n):m==="normal"?p.slice(0,n):shuffle(p.slice()).slice(0,n);
+  queue=m==="mix"?weighted(p,n):m==="freq"?p.slice().sort((a,b)=>b.hot-a.hot||b.ord-a.ord).slice(0,n):m==="normal"?p.slice(0,n):shuffle(p.slice()).slice(0,n);
   idx=0;session={ok:0,mid:0,ng:0};
   ["setup","stats","done"].forEach(i=>$(i).classList.add("hidden"));$("quiz").classList.remove("hidden");show();
 };
@@ -150,19 +151,21 @@ function show(){
   $("pos").textContent=`${idx+1} / ${queue.length}`;$("score").textContent=`書けた ${session.ok}　あやふや ${session.mid}　出ず ${session.ng}`;
   $("bar").style.width=(idx/queue.length*100)+"%";
   const r=rec[q.id];
-  $("chips").innerHTML=`<span class="chip">${q.year}</span><span class="chip sub">${SNAME[q.subject_id]||q.subject}</span>`+(q.hot>=3?'<span class="chip hot">頻出論点</span>':'')+(r?`<span class="chip sub">${["出てこない","あやふや","書けた"][r.last]}（${r.n}回）</span>`:"");
+  $("chips").innerHTML=`<span class="chip">${q.year}</span><span class="chip sub">${SNAME[q.subject_id]||q.subject}</span>`+(q.cur?'<span class="chip sub">現行法に修正済</span>':'')+(q.hot>=3?'<span class="chip hot">頻出論点</span>':'')+(r?`<span class="chip sub">${["出てこない","あやふや","書けた"][r.last]}（${r.n}回）</span>`:"");
   $("fav").textContent=fav[q.id]?"★":"☆";
-  if(isD()){const ys=q.entries.map(e=>e.year.replace("(旧司)","旧")).join("、");$("chips").innerHTML=`<span class="chip sub">${SNAME[q.subject_id]||q.subject}</span><span class="chip">${q.entries.length>1?q.entries.length+"回出題":"1回出題"}</span>`+(q.entries.length>=3?'<span class="chip hot">頻出論点</span>':'')+(r?`<span class="chip sub">${["出てこない","あやふや","書けた"][r.last]}（${r.n}回）</span>`:"");
-    $("qtext").textContent="【論点】"+q.t+"\n\n出題：\n"+ys;$("reveal").textContent="規範・参考答案を見る"}
+  if(isD()){const yrs=[...new Map(q.entries.map(e=>[e.qid,e.year.replace("(旧司)","旧")])).values()];
+    $("chips").innerHTML=`<span class="chip sub">${SNAME[q.subject_id]||q.subject}</span><span class="chip${q.hot>=8?" hot":""}">${q.old?"古い出題（頻出度外）":q.hot+"問で出題"}</span>`+(q.hot>=8?'<span class="chip hot">最頻出</span>':q.hot>=4?'<span class="chip hot">頻出</span>':'')+(r?`<span class="chip sub">${["出てこない","あやふや","書けた"][r.last]}（${r.n}回）</span>`:"");
+    $("qtext").textContent="【論点分野】"+q.t+"\n\nこの分野が出題された年度：\n"+yrs.join("、");$("reveal").textContent="規範・参考答案を見る"}
   else{$("qtext").textContent=q.text;$("reveal").textContent="答え（論点・規範）を見る"}
   $("answer").classList.add("hidden");$("reveal").classList.remove("hidden");$("navrow").classList.add("hidden");
   window.scrollTo(0,0);
 }
 function revealDrill(q){
   const P=$("points");P.innerHTML="";
-  const seen=new Set();
-  q.entries.forEach((e,i)=>{if(i===0||!seen.has(e.n)){const d=document.createElement("div");d.className="pt";const b=document.createElement("b");b.textContent=i===0?"規範":"別年度の規範";d.appendChild(b);const n=document.createElement("div");n.className="n";n.textContent=e.n;d.appendChild(n);if(e.r){const r=document.createElement("div");r.className="r";r.textContent="根拠："+e.r+"（"+e.year+"）";d.appendChild(r)}P.appendChild(d);seen.add(e.n)}});
-  const A=q.entries.filter(e=>e.answer).slice(0,3).map(e=>"■"+e.year+"\n"+e.answer+(e.note?"\n（注）"+e.note:"")).join("\n\n");
+  const lim=q.entries.slice(0,8);
+  lim.forEach(e=>{const d=document.createElement("div");d.className="pt";const b=document.createElement("b");b.textContent=e.pt+"（"+e.year+"）";d.appendChild(b);const n=document.createElement("div");n.className="n";n.textContent=e.n;d.appendChild(n);if(e.r){const r=document.createElement("div");r.className="r";r.textContent="根拠："+e.r;d.appendChild(r)}P.appendChild(d)});
+  if(q.entries.length>lim.length){const d=document.createElement("div");d.className="note";d.textContent="ほか"+(q.entries.length-lim.length)+"件は過去問モードで確認できます。";P.appendChild(d)}
+  const seen=new Set(),A=q.entries.filter(e=>!seen.has(e.qid)&&seen.add(e.qid)&&e.answer).slice(0,3).map(e=>"■"+e.year+"\n"+e.answer+(e.note?"\n（注）"+e.note:"")).join("\n\n");
   $("refans").textContent=A;$("anssec").classList.toggle("hidden",!A);
   $("intentsec").classList.add("hidden");$("excelsec").classList.add("hidden");
   $("answer").classList.remove("hidden");$("reveal").classList.add("hidden");$("answer").scrollIntoView({behavior:"smooth",block:"start"});
